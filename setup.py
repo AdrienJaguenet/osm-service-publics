@@ -56,6 +56,9 @@ def get_env_variables():
 	dbname = input('Database name: ')
 	user = input('User: ')
 	password = getpass('Password: ')
+	# TODO: automated fetching from the website
+	date_maj_sirene = input('Date de màj des données SIRENE (format YYYY-MM-DD): ')
+	date_maj_annuaire = input('Date de màj des données de l\'annuaire (format YYYY-MM-DD): ')
 	# store in a .env file
 	# create the file if it doesn't exist
 	if glob.glob('.env') == []:
@@ -64,6 +67,8 @@ def get_env_variables():
 	dotenv.set_key(dotenv_file, 'OSP_PSQL_DB', dbname)
 	dotenv.set_key(dotenv_file, 'OSP_PSQL_USER', user)
 	dotenv.set_key(dotenv_file, 'OSP_PSQL_PASSWORD', password)
+	dotenv.set_key(dotenv_file, 'OSP_DATE_SIRENE', date_maj_sirene)
+	dotenv.set_key(dotenv_file, 'OSP_DATE_ANNUAIRE', date_maj_annuaire)
 
 get_env_variables()
 download_files()
