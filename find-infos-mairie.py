@@ -16,12 +16,7 @@ import dotenv
 adresse_re = re.compile(r"(?P<housenumber>\d+\s?(bis|ter|quater)?)(?P<street>.*)")
 
 def get_social_networks(osm_attributes, id):
-	social_query = """
-	SELECT * FROM reseau_social
-	WHERE id=%s;
-	"""
-	cur.execute(social_query, (row['id'],))
-	social_networks = cur.fetchall()
+	social_networks = TablesAnnuaire['reseau_social'].get_by_id(cur, id)
 	for social_network in social_networks:
 		osm_attributes["contact:%s" % social_network['custom_dico2'].lower()] = social_network['valeur']
 
@@ -34,42 +29,29 @@ def get_telephone(osm_attributes, id):
 
 def get_horaires(osm_attributes, id):
 	# Fetch the opening hours from the annuaire tables
-	horaires_query = """
-	SELECT * FROM plage_ouverture
-	WHERE id=%s;
-	""" 
-	cur.execute(horaires_query, (row['id'],))
-	horaires = cur.fetchall()
-	horaires_liste = list()
+	horaires = TablesAnnuaire['plage_ouverture'].get_by_id(cur, id)
+	osm_attributes['opening_hours'] = list()
 	for horaire in horaires:
 		day_1 = convert_day(horaire['nom_jour_debut'])
 		day_2 = convert_day(horaire['nom_jour_fin'])
 		plage_jours = day_1 + "-" + day_2 if day_2 is not None and day_1 != day_2 else day_1
 		horaire_1 = format_horaire(horaire['valeur_heure_debut_1']) + "-" + format_horaire(horaire['valeur_heure_fin_1'])
 		if horaire['valeur_heure_debut_2'] is not None:
-			horaires_liste.append(plage_jours + " " + horaire_1 + "," + format_horaire(horaire['valeur_heure_debut_2']) + "-" + format_horaire(horaire['valeur_heure_fin_2']))
+			osm_attributes['opening_hours'].append(plage_jours + " " + horaire_1 + "," + format_horaire(horaire['valeur_heure_debut_2']) + "-" + format_horaire(horaire['valeur_heure_fin_2']))
 		else:
-			horaires_liste.append(plage_jours + " " + horaire_1)
+			osm_attributes['opening_hours'].append(plage_jours + " " + horaire_1)
 		if 'commentaire' in horaire and horaire['commentaire'] is not None:
 			if 'note:opening_hours' not in osm_attributes:
 				osm_attributes['note:opening_hours'] = [horaire['commentaire']]
 			else:
 				osm_attributes['note:opening_hours'].append(horaire['commentaire'])
 
-	osm_attributes['opening_hours'] = ";".join(horaires_liste)
-
 def get_websites(osm_attributes, id):
 	# Fetch websites
-	website_query = """
-	SELECT * FROM site_internet WHERE id=%s;
-	"""
-	cur.execute(website_query, (row['id'],))
-	websites = cur.fetchall()
-	liste_sites = list()
+	websites = TablesAnnuaire['site_internet'].get_by_id(cur, id)
+	osm_attributes['website'] = list()
 	for website in websites:
-		liste_sites.append(website['valeur'])
-	if len(liste_sites) > 0:
-		osm_attributes['website'] = ";".join(liste_sites)
+		osm_attributes['website'].append(website['valeur'])
 
 def get_adresse(osm_attributes, id):
 	results = TablesAnnuaire['adresse'].get_by_id(cur, id)
