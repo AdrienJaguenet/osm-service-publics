@@ -7,6 +7,8 @@ import psycopg2.extras
 from SPARQLWrapper import SPARQLWrapper, JSON
 from utils.conversions import *
 import utils.psql as psql
+from utils.base_annuaire import tables as TablesAnnuaire
+from phonenumbers import parse as phoneparse, format_number as phoneformat, PhoneNumberFormat
 
 def get_social_networks(osm_attributes, id):
 	social_query = """
@@ -17,6 +19,13 @@ def get_social_networks(osm_attributes, id):
 	social_networks = cur.fetchall()
 	for social_network in social_networks:
 		osm_attributes["contact:%s" % social_network['custom_dico2'].lower()] = social_network['valeur']
+
+def get_telephone(osm_attributes, id):
+	results = TablesAnnuaire['telephone'].get_by_id(cur, id)
+	for telephone in results:
+		osm_attributes["contact:phone"] = phoneformat(phoneparse(telephone['valeur'], "FR"), PhoneNumberFormat.INTERNATIONAL)
+		if telephone['description'] is not None:
+			osm_attributes["note:contact:phone"] = telephone['description']
 
 def get_horaires(osm_attributes, id):
 	# Fetch the opening hours from the annuaire tables
@@ -116,6 +125,7 @@ with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
 
 	get_websites(osm_attributes, row['id'])
 	get_horaires(osm_attributes, row['id'])
+	get_telephone(osm_attributes, row['id'])
 	get_social_networks(osm_attributes, row['id'])
 	if 'commentaires_plage_ouverture' in row and row['commentaires_plage_ouverture'] is not None:
 		if 'note:opening_hours' not in osm_attributes:

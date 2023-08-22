@@ -39,6 +39,10 @@ class Table:
 		if len(item.get('code_postal', [])) > 5:
 			item['code_postal'] = None
 		return item
+	
+	def get_by_id(self, cursor, id):
+		cursor.execute("SELECT * FROM %s WHERE id=%%s;" % self.name, (id,))
+		return cursor.fetchall()
 
 class PivotTable(Table):
 	def fix_item(self, item):

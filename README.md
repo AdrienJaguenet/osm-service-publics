@@ -12,6 +12,7 @@ Data matching tool between Wikidata, OSM, SIRENE and the French public administr
 	- pyperclip
 	- python-dotenv
 	- SPARQLWrapper
+	- phonenumbers
 
 ## How to use
 
