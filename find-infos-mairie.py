@@ -9,6 +9,11 @@ from utils.conversions import *
 import utils.psql as psql
 from utils.base_annuaire import tables as TablesAnnuaire
 from phonenumbers import parse as phoneparse, format_number as phoneformat, PhoneNumberFormat
+import re
+import os
+import dotenv
+
+adresse_re = re.compile(r"(?P<housenumber>\d+\s?(bis|ter|quater)?)(?P<street>.*)")
 
 def get_social_networks(osm_attributes, id):
 	social_query = """
@@ -66,6 +71,35 @@ def get_websites(osm_attributes, id):
 	if len(liste_sites) > 0:
 		osm_attributes['website'] = ";".join(liste_sites)
 
+def get_adresse(osm_attributes, id):
+	results = TablesAnnuaire['adresse'].get_by_id(cur, id)
+	for address in results:
+		if not 'addr:street' in osm_attributes:
+			osm_attributes['addr:street'] = []
+		if not 'addr:city' in osm_attributes:
+			osm_attributes['addr:city'] = []
+		if not 'addr:postcode' in osm_attributes:
+			osm_attributes['addr:postcode'] = []
+		if not 'addr:housenumber' in osm_attributes:
+			osm_attributes['addr:housenumber'] = []
+		if address['complement1'] is not None:
+			osm_attributes['addr:street'].append(address['complement1'])
+		if address['complement2'] is not None:
+			osm_attributes['addr:street'].append(address['complement2'])
+		if address['nom_commune'] is not None:
+			osm_attributes['addr:city'].append(address['nom_commune'])
+		if address['code_postal'] is not None:
+			osm_attributes['addr:postcode'].append(address['code_postal'])
+		if address['numero_voie'] is not None:
+			# this fields contains the housenumber and the street name
+			# we need to split them using the regex
+			match = adresse_re.match(address['numero_voie'])
+			if match is not None:
+				if match.group('housenumber') is not None:
+					osm_attributes['addr:housenumber'].append(match.group('housenumber'))
+				if match.group('street') is not None:
+					osm_attributes['addr:street'].append(match.group('street'))
+
 # First argument is the postcode of the town
 
 if len(sys.argv) < 2:
@@ -73,6 +107,8 @@ if len(sys.argv) < 2:
 	sys.exit(1)
 
 insee_code = sys.argv[1]
+# load environment variables with dotenv
+dotenv.load_dotenv()
 
 # Open the database
 conn = psql.connect_to_db()
@@ -127,23 +163,24 @@ with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
 	get_horaires(osm_attributes, row['id'])
 	get_telephone(osm_attributes, row['id'])
 	get_social_networks(osm_attributes, row['id'])
+	get_adresse(osm_attributes, row['id'])
 	if 'commentaires_plage_ouverture' in row and row['commentaires_plage_ouverture'] is not None:
 		if 'note:opening_hours' not in osm_attributes:
 			osm_attributes['note:opening_hours'] = [row['commentaires_plage_ouverture']]
 		else:
 			osm_attributes['note:opening_hours'].append(row['commentaires_plage_ouverture'])
 
-	# Contact attributes
-	if row['adresse_courriel'] != None:
-		osm_attributes["contact:email"] = ";".join(row['adresse_courriel'])
-
+	osm_attributes['contact:email'] = row['adresse_courriel']
 	osm_attributes["ref:FR:SIRET"] = row['siret']
-	osm_attributes["addr:postcode"] = row['codepostaletablissement']
-	osm_attributes["addr:city"] = city_name
-	if row['numerovoieetablissement'] is not None:
-		repetition = row.get('indicerepetitionetablissement', '') 
-		osm_attributes["addr:housenumber"] = "%s %s" % (row['numerovoieetablissement'], repetition)
-	for k,v in osm_attributes.items():
+	osm_attributes["comment"] = row['information_complementaire']
+	osm_attributes['source'] = [
+		'Première Ministre - %s' % os.environ.get('OSP_DATE_ANNUAIRE'),
+		'INSEE - %s' % os.environ.get('OSP_DATE_SIRENE')]
+	for k,v in sorted(osm_attributes.items()):
+		if v is None:
+			continue
+		if type(v) is list:
+			v = ";".join(v)
 		print("%s=%s" % (k, v))
 	pyperclip.copy("\n".join(["%s=%s" % (k, v) for k, v in osm_attributes.items()]))
 conn.close()
